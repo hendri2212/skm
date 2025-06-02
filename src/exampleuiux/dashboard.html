@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quiz Dashboard (Mobile)</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+    <style>
+        /* ◾ Background Gradien Seluruh Layar */
+        body {
+            background: linear-gradient(135deg, #8b5cf6 0%, #d8b4fe 100%);
+            min-height: 100vh;
+            color: white;
+            padding-bottom: 80px;
+            /* ruang untuk navbar bawah */
+        }
+
+        /* ◾ Wrapper Utama dengan Padding Samping */
+        .app-container {
+            max-width: 414px;
+            /* lebar khas mobile ~ iPhone Pro Max */
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        /* ◾ Profile & Points */
+        .profile-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .profile-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .profile-info img {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .profile-info .profile-text h6 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1rem;
+            color: #ffffff;
+        }
+
+        .profile-info .profile-text small {
+            display: block;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        .points-badge {
+            background-color: rgba(255, 255, 255, 0.85);
+            color: #4f46e5;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .points-badge i {
+            font-size: 1rem;
+            color: #fbbf24;
+        }
+
+        /* ◾ Daily Task Card */
+        .daily-task-card {
+            background-color: rgba(255, 255, 255, 0.15);
+            border: none;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .daily-task-card .icon-wrapper {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+        }
+
+        .daily-task-card .icon-wrapper img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .daily-task-card .task-text h5 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1rem;
+            color: #ffffff;
+        }
+
+        .daily-task-card .task-text small {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.8rem;
+        }
+
+        .daily-task-card .progress {
+            height: 8px;
+            background-color: rgba(255, 255, 255, 0.2);
+            margin-top: 0.75rem;
+            border-radius: 4px;
+        }
+
+        .daily-task-card .progress-bar {
+            background-color: #fbbf24;
+            border-radius: 4px;
+        }
+
+        .daily-task-card .progress-text {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.85);
+            margin-left: auto;
+        }
+
+        /* ◾ Section Title */
+        .section-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        /* ◾ Quiz Categories (Ikon Bundar + Label) */
+        .categories-wrapper {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .category-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 60px;
+        }
+
+        .category-item .category-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.35rem;
+        }
+
+        .category-item .category-icon img {
+            width: 28px;
+            height: 28px;
+        }
+
+        .category-item small {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+        }
+
+        /* ◾ More Games Cards */
+        .more-games-wrapper {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .game-card {
+            flex: 1;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            padding: 0.75rem;
+            color: #1f2937;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .game-card .game-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #eef2ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .game-card .game-icon img {
+            width: 32px;
+            height: 32px;
+        }
+
+        .game-card h6 {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .game-card small {
+            color: #6b7280;
+            font-size: 0.7rem;
+        }
+
+        .game-card .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .game-card .user-count {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .game-card .user-count i {
+            color: #fbbf24;
+            font-size: 0.9rem;
+        }
+
+        .game-card .play-btn {
+            background-color: #8b5cf6;
+            color: white;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            border: none;
+        }
+
+        /* ◾ Bottom Navbar */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 414px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+            padding: 0.5rem 0;
+        }
+
+        .bottom-nav .nav-item {
+            flex: 1;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.75rem;
+        }
+
+        .bottom-nav .nav-item.active {
+            color: #8b5cf6;
+        }
+
+        .bottom-nav .nav-item i {
+            display: block;
+            font-size: 1.25rem;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- ===== Profile & Points ===== -->
+        <div class="profile-section">
+            <div class="profile-info">
+                <img src="https://i.pravatar.cc/100" alt="Profile Pic" />
+                <div class="profile-text">
+                    <h6>Roxane Harley</h6>
+                    <small>Expert</small>
+                </div>
+            </div>
+            <div class="points-badge">
+                <i class="bi bi-lightning-fill"></i>
+                <span>1200</span>
+            </div>
+        </div>
+
+        <!-- ===== Daily Task Card ===== -->
+        <div class="card daily-task-card">
+            <div class="d-flex align-items-center">
+                <div class="icon-wrapper">
+                    <img src="https://img.icons8.com/ios-glyphs/30/ffffff/anchor.png" alt="Daily Task Icon" />
+                </div>
+                <div class="task-text">
+                    <h5>Daily Task</h5>
+                    <small>14 Questions</small>
+                </div>
+                <div class="progress-text ms-auto">9/14</div>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: 64%;"></div>
+            </div>
+        </div>
+
+        <!-- ===== Quiz Categories ===== -->
+        <div class="section-title">Quiz</div>
+        <div class="categories-wrapper">
+            <div class="category-item">
+                <div class="category-icon">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/football2.png" alt="Football" />
+                </div>
+                <small>Football</small>
+            </div>
+            <div class="category-item">
+                <div class="category-icon">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/test-tube.png" alt="Science" />
+                </div>
+                <small>Science</small>
+            </div>
+            <div class="category-item">
+                <div class="category-icon">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/dress-front-view.png" alt="Fashion" />
+                </div>
+                <small>Fashion</small>
+            </div>
+            <div class="category-item">
+                <div class="category-icon">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/movie.png" alt="Movie" />
+                </div>
+                <small>Movie</small>
+            </div>
+            <div class="category-item">
+                <div class="category-icon">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/musical-notes.png" alt="Music" />
+                </div>
+                <small>Music</small>
+            </div>
+        </div>
+
+        <!-- ===== More Games ===== -->
+        <div class="section-title">More Games</div>
+        <div class="more-games-wrapper">
+            <!-- Game 1 -->
+            <div class="game-card">
+                <div class="game-icon">
+                    <img src="https://img.icons8.com/ios-filled/100/8b5cf6/magnet.png" alt="Language Quiz" />
+                </div>
+                <div>
+                    <h6>Language Quiz</h6>
+                    <small>15 Questions</small>
+                </div>
+                <div class="card-footer">
+                    <div class="user-count">
+                        <i class="bi bi-crown-fill"></i>
+                        <span>24.7K</span>
+                    </div>
+                    <button class="play-btn">
+                        <i class="bi bi-lightning-fill"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Game 2 -->
+            <div class="game-card">
+                <div class="game-icon">
+                    <img src="https://img.icons8.com/ios-filled/100/8b5cf6/compass.png" alt="Exam Quiz" />
+                </div>
+                <div>
+                    <h6>Exam Quiz</h6>
+                    <small>12 Questions</small>
+                </div>
+                <div class="card-footer">
+                    <div class="user-count">
+                        <i class="bi bi-crown-fill"></i>
+                        <span>12.5K</span>
+                    </div>
+                    <button class="play-btn">
+                        <i class="bi bi-lightning-fill"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Bottom Navigation Bar ===== -->
+    <div class="bottom-nav d-flex">
+        <div class="nav-item active">
+            <i class="bi bi-compass-fill"></i>
+            Explore
+        </div>
+        <div class="nav-item">
+            <i class="bi bi-trophy-fill"></i>
+            Leaderboard
+        </div>
+        <div class="nav-item">
+            <i class="bi bi-bookmark-fill"></i>
+            Bookmarks
+        </div>
+        <div class="nav-item">
+            <i class="bi bi-gear-fill"></i>
+            Settings
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS (Optional untuk komponen interaktif) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
