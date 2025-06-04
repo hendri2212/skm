@@ -146,16 +146,18 @@
                     <i class="bi bi-house fs-4 text-secondary"></i>
                 </button>
             </div>
-            <div class="card question-card mb-4 shadow-sm rounded-4">
-                <div class="card-body">
-                    <h3 class="mb-3">Quiz Selesai!</h3>
-                    <p class="mb-2">
-                        Halo <strong>{{ user.name }}</strong>, Anda telah menyelesaikan quiz ini!
-                    </p>
-                    <h4 class="text-primary">Terima kasih atas partisipasi Anda</h4>
-                    <button class="btn btn-success mt-5 w-100" @click="restartQuiz">
-                        Ulangi Quiz
-                    </button>
+            <div class="position-relative" style="margin-top: 60px;">
+                <div class="card bg-white bg-opacity-75 rounded-4 position-absolute" style="width: 100%; height: 100%; top: -30px;">
+                    <label class="py-1 fw-bold text-secondary">Survey Selesai</label>
+                </div>
+                <div class="card bg-white bg-opacity-90 rounded-4 shadow-sm p-4 position-relative">
+                    <div class="text-center">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/0/0a/Lambang_Kabupaten_Kotabaru.png" alt="User Image" class="mx-auto" style="width: 80px">
+                        <h2 class="fs-4 fw-bold mt-2 text-secondary">Pulaulaut Sigam</h2>
+                    </div>
+                    <p class="fs-5 fw-bold text-dark my-4 text-center">Terima kasih atas partisipasi Anda</p>
+                    <p class="small text-muted mb-4 text-center">Anda telah menyelesaikan quiz ini!</p>
+                    <button class="btn btn-warning w-100 rounded-3 py-2" @click="restartQuiz">Ulangi Quiz</button>
                 </div>
             </div>
         </div>
