@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiz Screen</title>
+    <!-- Bootstrap CSS (v5.3) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Style utama (style.css) -->
+    <link rel="stylesheet" href="style.css" />
+    <!-- Optional: Bootstrap Icons (jika ingin pakai ikon bawaan) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
+    <style>
+        /* ◾ Background Gradien Seluruh Layar */
+body {
+    background: linear-gradient(135deg, #8b5cf6 0%, #d8b4fe 100%);
+    min-height: 100vh;
+    color: white;
+    padding-bottom: 80px;
+    /* ruang untuk navbar bawah */
+}
+
+/* ◾ Wrapper Utama dengan Padding Samping */
+.container {
+    max-width: 414px;
+    /* lebar khas mobile ~ iPhone Pro Max */
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* ◾ Profile & Points */
+.profile-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.profile-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.profile-info img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+}
+
+.profile-info .profile-text h6 {
+    margin: 0;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #ffffff;
+}
+
+.profile-info .profile-text small {
+    display: block;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* ◾ Daily Task Card */
+.daily-task-card {
+    background-color: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.daily-task-card .task-text h5 {
+    margin: 0;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #ffffff;
+}
+
+.daily-task-card .task-text small {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+}
+
+.daily-task-card .progress {
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.2);
+    margin-top: 0.75rem;
+    border-radius: 4px;
+}
+
+.daily-task-card .progress-bar {
+    background-color: #fbbf24;
+    border-radius: 4px;
+}
+
+/* ◾ Section Title */
+.section-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+/* ◾ Quiz Categories (Ikon Bundar + Label) */
+.categories-wrapper {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.category-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* width: 60px; */
+    width: 100%;
+}
+
+.category-item .category-icon {
+    /* width: 60px; */
+    width: 100%;
+    height: 60px;
+    /* border-radius: 50%; */
+    background-color: rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+}
+
+/* ◾ More Games Cards */
+.more-games-wrapper {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 2.5rem;
+}
+
+.game-card {
+    flex: 1;
+    background-color: #ffffff;
+    border-radius: 1rem;
+    padding: 0.75rem;
+    color: #1f2937;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.game-card .game-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #eef2ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.game-card .game-icon img {
+    width: 32px;
+    height: 32px;
+}
+
+.game-card h6 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.game-card small {
+    color: #6b7280;
+    font-size: 0.7rem;
+}
+
+.game-card .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.game-card .user-count {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.game-card .user-count i {
+    color: #fbbf24;
+    font-size: 0.9rem;
+}
+
+.game-card .play-btn {
+    background-color: #8b5cf6;
+    color: white;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    border: none;
+}
+        /* ======= CUSTOM STYLING UNTUK LAYAR SOAL (MID SCREEN) ======= */
+
+        /* Card Soal Utama */
+        .question-card {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            padding: 1rem;
+            color: #111827;
+            /* teks hitam gelap pada kartu soal */
+            margin-bottom: 1.5rem;
+        }
+
+        /* Judul Soal di dalam kartu */
+        .question-card .question-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #4f46e5;
+            /* ungu tua */
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        /* Time Bar (progress bar manual) */
+        .time-bar-container {
+            height: 8px;
+            background-color: #e5e7eb;
+            /* abu-abu terang */
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+        }
+
+        .time-bar-container .time-bar-fill {
+            width: 40%;
+            /* contoh: 40% progress */
+            height: 100%;
+            background-color: #fbbf24;
+            /* kuning */
+        }
+
+        /* Waktu tersisa (timer) */
+        .timer-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #4b5563;
+            /* abu-abu gelap */
+            text-align: right;
+        }
+
+        /* List Pilihan Jawaban */
+        .answer-option {
+            background-color: #f3f4f6;
+            /* abu-abu sangat terang */
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid transparent;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .answer-option:hover {
+            background-color: #e5e7eb;
+            /* sedikit lebih gelap saat hover */
+        }
+
+        .answer-option.correct {
+            background-color: #bbf7d0;
+            /* hijau muda */
+            border-color: #34d399;
+        }
+
+        .answer-option.selected {
+            background-color: #cffafe;
+            /* biru muda */
+            border-color: #0ea5e9;
+        }
+
+        /* Huruf pilihan (A, B, C, D) */
+        .answer-option .option-label {
+            font-weight: 600;
+            margin-right: 0.75rem;
+            color: #111827;
+        }
+
+        /* Teks jawaban */
+        .answer-option .option-text {
+            flex: 1;
+            color: #374151;
+            /* abu-abu gelap */
+        }
+
+        /* Container tombol “lifeline” di bawah */
+        .lifeline-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1rem;
+        }
+
+        .lifeline-btn {
+            flex: 1;
+            background-color: #fbbf24;
+            /* kuning */
+            color: #ffffff;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 0;
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 0.25rem;
+            transition: background-color 0.2s;
+        }
+
+        .lifeline-btn:hover {
+            background-color: #f59e0b;
+            /* kuning gelap saat hover */
+        }
+
+        .lifeline-btn i {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Agar icon lifeline tidak terlalu menempel */
+        .lifeline-btn:first-child {
+            margin-left: 0;
+        }
+
+        .lifeline-btn:last-child {
+            margin-right: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Wrapper container sesuai style.css (max-width 414px) -->
+    <div class="container">
+        <!-- 1) Header: Back + Judul + Bookmark -->
+        <div class="d-flex align-items-center justify-content-between mt-3 mb-3">
+            <!-- Tombol Kembali -->
+            <button class="btn btn-link p-0 text-white">
+                <!-- Gunakan ikon Bootstrap Icons atau ganti dengan <span>&larr;</span> -->
+                <i class="bi bi-arrow-left fs-4"></i>
+            </button>
+
+            <!-- Judul Layar -->
+            <h6 class="mb-0 text-white">Question 3/10</h6>
+
+            <!-- Ikon Bookmark -->
+            <button class="btn btn-link p-0 text-white">
+                <i class="bi bi-bookmark fs-4"></i>
+            </button>
+        </div>
+
+        <!-- 2) Kartu Soal Utama -->
+        <div class="question-card">
+            <!-- 2.1 Judul Soal -->
+            <div class="question-title">
+                Which soccer team won the FIFA World Cup for the first time?
+            </div>
+
+            <!-- 2.2 Time Bar + Timer -->
+            <div class="mb-2">
+                <div class="time-bar-container">
+                    <div class="time-bar-fill"></div>
+                </div>
+                <div class="timer-label">00:12</div>
+            </div>
+
+            <!-- 2.3 Daftar Pilihan Jawaban -->
+            <div class="answer-option correct">
+                <!-- Label A -->
+                <div class="option-label">A</div>
+                <!-- Teks Jawaban -->
+                <div class="option-text">Uruguay</div>
+                <!-- Icon Centang (boleh pakai Bootstrap Icons) -->
+                <i class="bi bi-check-circle-fill text-success"></i>
+            </div>
+
+            <div class="answer-option">
+                <div class="option-label">B</div>
+                <div class="option-text">Brazil</div>
+                <!-- Placeholder ikon untuk opsi belum dipilih -->
+                <i class="bi bi-circle"></i>
+            </div>
+
+            <div class="answer-option">
+                <div class="option-label">C</div>
+                <div class="option-text">Italy</div>
+                <i class="bi bi-circle"></i>
+            </div>
+
+            <div class="answer-option">
+                <div class="option-label">D</div>
+                <div class="option-text">Germany</div>
+                <i class="bi bi-circle"></i>
+            </div>
+
+            <!-- 2.4 Tombol “Lifeline” di bagian bawah kartu -->
+            <div class="lifeline-row">
+                <button class="lifeline-btn">
+                    <i class="bi bi-shuffle"></i>
+                    <span>50/50</span>
+                </button>
+                <button class="lifeline-btn">
+                    <i class="bi bi-people"></i>
+                    <span>Audience</span>
+                </button>
+                <button class="lifeline-btn">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Add Time</span>
+                </button>
+                <button class="lifeline-btn">
+                    <i class="bi bi-skip-end"></i>
+                    <span>Skip</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS & Popper (opsional, jika butuh interaksi JS) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
