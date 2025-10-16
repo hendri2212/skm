@@ -39,3 +39,17 @@ type SubmitAnswersPayload struct {
 		ChoiceID   uint `json:"choice_id" binding:"required"`
 	} `json:"answers" binding:"required,dive"`
 }
+
+type AgeCountResult struct {
+	Age19Under int64 `gorm:"column:age_19_under"`
+	Age20_30   int64 `gorm:"column:age_20_30"`
+	Age31_49   int64 `gorm:"column:age_31_49"`
+	Age50Above int64 `gorm:"column:age_50_above"`
+	Total      int64 `gorm:"column:total"`
+}
+
+type GenderCountResult struct {
+	Male   int64 `json:"male"`
+	Female int64 `json:"female"`
+	Total  int64 `json:"total"`
+}

@@ -1,8 +1,14 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"skm/internal/models"
+	"strconv"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -10,253 +16,528 @@ type UserHandler struct {
 	db *gorm.DB
 }
 
+// ---------- RESPONSE DTOs ----------
+type ChoiceDisplay struct {
+	ID          uint   `json:"id"`
+	DisplayText string `json:"display_text"` // akan di-bold bila dipilih
+	RawText     string `json:"raw_text"`
+	Selected    bool   `json:"selected"`
+}
+
+type QuestionDetail struct {
+	QuestionID   uint            `json:"question_id"`
+	QuestionText string          `json:"question_text"`
+	Choices      []ChoiceDisplay `json:"choices"`
+	SelectedID   *uint           `json:"selected_choice_id,omitempty"`
+}
+
+type UserAnswerDetailResponse struct {
+	User struct {
+		ID                uint   `json:"id"`
+		FullName          string `json:"full_name"`
+		PlaceOfBirth      string `json:"place_of_birth,omitempty"`
+		DateOfBirth       string `json:"date_of_birth,omitempty"`
+		IsMale            *bool  `json:"is_male,omitempty"`
+		LastEducationID   *uint  `json:"last_education_id,omitempty"`
+		LastEducationName string `json:"last_education_name,omitempty"`
+		OccupationID      *uint  `json:"main_occupation_id,omitempty"`
+		OccupationName    string `json:"main_occupation_name,omitempty"`
+	} `json:"user"`
+	Answers []QuestionDetail `json:"answers"`
+}
+
+type UserOption struct {
+	Value uint   `json:"value"`
+	Label string `json:"label"`
+}
+
 func UsersHandler(db *gorm.DB) *UserHandler {
-	db.AutoMigrate(&models.User{})
+	// NOTE: Di production, pertimbangkan memindahkan AutoMigrate ke proses migrasi terpisah.
+	db.AutoMigrate(&models.User{}, &models.Education{}, &models.Occupation{})
 	return &UserHandler{db: db}
 }
 
-// func (h *UserHandler) GetUsers(c *gin.Context) {
-// 	// ambil role dari context (set di middleware)
-// 	roleIfc, exists := c.Get("user_role")
-// 	if !exists {
-// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing role in context"})
-// 		return
-// 	}
-// 	userRole := roleIfc.(string)
+// ----------------- Helpers (aman & tanpa case nil) -----------------
 
-// 	var users []models.User
-// 	dbQuery := h.db.Preload("Position").Preload("Leader").Model(&models.User{})
+// fmtPct: format float ke 2 desimal sebagai string
+func fmtPct(v float64) string { return fmt.Sprintf("%.2f", v) }
 
-// 	switch userRole {
-// 	case string(models.UserRoleSuperadmin):
-// 		// superadmin: no filter
-// 	case string(models.UserRoleAdmin):
-// 		// Admin: exclude both superadmin and admin roles
-// 		dbQuery = dbQuery.Where("role NOT IN ?", []string{
-// 			string(models.UserRoleSuperadmin),
-// 			string(models.UserRoleAdmin),
-// 		})
-// 	default:
-// 		// user biasa: mungkin hanya boleh lihat diri sendiri?
-// 		userID := c.GetUint("user_id")
-// 		dbQuery = dbQuery.Where("id = ?", userID)
-// 	}
+// toDateString: terima either time.Time atau *time.Time dari field model yang bisa bervariasi
+func toDateString(v any) (string, bool) {
+	if t, ok := v.(*time.Time); ok && t != nil && !t.IsZero() {
+		return t.Format("2006-01-02"), true
+	}
+	if t, ok := v.(time.Time); ok && !t.IsZero() {
+		return t.Format("2006-01-02"), true
+	}
+	return "", false
+}
 
-// 	if err := dbQuery.Find(&users).Error; err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
-// 	c.JSON(http.StatusOK, users)
-// }
+// toBoolPtr: support bool atau *bool → *bool
+func toBoolPtr(v any) *bool {
+	if p, ok := v.(*bool); ok {
+		return p
+	}
+	if b, ok := v.(bool); ok {
+		bb := b
+		return &bb
+	}
+	return nil
+}
 
-// func (h *UserHandler) CreateUser(c *gin.Context) {
-// 	var user models.User
-// 	if err := c.ShouldBindJSON(&user); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
+// toUintPtr: support uint atau *uint → *uint
+func toUintPtr(v any) *uint {
+	if p, ok := v.(*uint); ok {
+		return p
+	}
+	if u, ok := v.(uint); ok {
+		uu := u
+		return &uu
+	}
+	return nil
+}
 
-// 	// Set password default
-// 	rawPassword := "12345"
-// 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
-// 		return
-// 	}
-// 	user.Password = string(hashedPassword)
+// dbx: shortcut WithContext untuk semua query (cancellable)
+func (h *UserHandler) dbx(ctx context.Context) *gorm.DB {
+	return h.db.WithContext(ctx)
+}
 
-// 	h.db.Create(&user)
+// ----------------- Handlers -----------------
 
-// 	c.JSON(http.StatusCreated, gin.H{
-// 		"id":    user.ID,
-// 		"email": user.Email,
-// 	})
-// }
+// CountAge returns total respondents and breakdown from youngest to oldest
+func (h *UserHandler) CountAge(c *gin.Context) {
+	var res models.AgeCountResult
+	err := h.dbx(c.Request.Context()).Raw(`
+        SELECT
+          SUM(CASE WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) <= 19 THEN 1 ELSE 0 END) AS age_19_under,
+          SUM(CASE WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 20 AND 30 THEN 1 ELSE 0 END) AS age_20_30,
+          SUM(CASE WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 31 AND 49 THEN 1 ELSE 0 END) AS age_31_49,
+          SUM(CASE WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) >= 50 THEN 1 ELSE 0 END) AS age_50_above,
+          COUNT(*) AS total
+        FROM users
+    `).Scan(&res).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-// Hanya user itu sendiri yang bisa lihat datanya
-// func (h *UserHandler) GetUserByID(c *gin.Context) {
-// 	idParam := c.Param("id")
-// 	requestedID, err := strconv.ParseUint(idParam, 10, 64)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
-// 		return
-// 	}
+	var pct19, pct20_30, pct31_49, pct50 float64
+	if res.Total > 0 {
+		t := float64(res.Total)
+		pct19 = float64(res.Age19Under) / t * 100
+		pct20_30 = float64(res.Age20_30) / t * 100
+		pct31_49 = float64(res.Age31_49) / t * 100
+		pct50 = float64(res.Age50Above) / t * 100
+	}
 
-//		loggedInUserID := c.GetUint("user_id")
-//		if uint(requestedID) != loggedInUserID {
-//			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-//			return
-//		}
-//		var user models.User
-//		if err := h.db.Preload("Position").Preload("Leader").First(&user, requestedID).Error; err != nil {
-//			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-//			return
-//		}
-//		c.JSON(http.StatusOK, user)
-//	}
-// func (h *UserHandler) GetUserByID(c *gin.Context) {
-// 	id := c.Param("id")
-// 	var user models.User
-// 	if err := h.db.Preload("Position").Preload("Leader").First(&user, id).Error; err != nil {
-// 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-// 		return
-// 	}
+	type ageGroup struct {
+		AgeRange string `json:"age_range"`
+		Count    int64  `json:"count"`
+		Percent  string `json:"percent"`
+	}
+	groups := make([]ageGroup, 0, 4)
+	groups = append(groups,
+		ageGroup{AgeRange: "<=19", Count: res.Age19Under, Percent: fmtPct(pct19)},
+		ageGroup{AgeRange: "20-30", Count: res.Age20_30, Percent: fmtPct(pct20_30)},
+		ageGroup{AgeRange: "31-49", Count: res.Age31_49, Percent: fmtPct(pct31_49)},
+		ageGroup{AgeRange: ">=50", Count: res.Age50Above, Percent: fmtPct(pct50)},
+	)
 
-// 	c.JSON(http.StatusOK, user)
-// }
+	c.JSON(http.StatusOK, gin.H{
+		"total_respondents": res.Total,
+		"age_groups":        groups,
+	})
+}
 
-// func (h *UserHandler) UpdateUser(c *gin.Context) {
-// 	id := c.Param("id")
-// 	var user models.User
-// 	if err := h.db.First(&user, id).Error; err != nil {
-// 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-// 		return
-// 	}
+func (h *UserHandler) CountGender(c *gin.Context) {
+	var res models.GenderCountResult
 
-// 	form, err := c.MultipartForm()
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid multipart form"})
-// 		return
-// 	}
+	err := h.dbx(c.Request.Context()).Raw(`
+		SELECT
+			SUM(CASE WHEN is_male = 1 THEN 1 ELSE 0 END) AS male,
+			SUM(CASE WHEN is_male = 0 THEN 1 ELSE 0 END) AS female,
+			COUNT(*) AS total
+		FROM users
+	`).Scan(&res).Error
 
-// 	// Update data dari form field
-// 	if fullName := form.Value["full_name"]; len(fullName) > 0 {
-// 		user.FullName = fullName[0]
-// 	}
-// 	if email := form.Value["email"]; len(email) > 0 {
-// 		user.Email = email[0]
-// 	}
-// 	if nip := form.Value["nip"]; len(nip) > 0 {
-// 		user.Nip = &nip[0]
-// 	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-// 	// Tambahkan pengecekan untuk position_id dan leader_id
-// 	if positionID := form.Value["position_id"]; len(positionID) > 0 && positionID[0] != "" {
-// 		// if idVal, err := strconv.ParseUint(positionID[0], 10, 64); err == nil {
-// 		// posID := uint(idVal)
-// 		// user.PositionID = &posID
-// 		// }
-// 	}
+	var pctMale, pctFemale float64
+	if res.Total > 0 {
+		t := float64(res.Total)
+		pctMale = float64(res.Male) / t * 100
+		pctFemale = float64(res.Female) / t * 100
+	}
 
-// 	if leaderID := form.Value["leader_id"]; len(leaderID) > 0 && leaderID[0] != "" {
-// 		if idVal, err := strconv.ParseUint(leaderID[0], 10, 64); err == nil {
-// 			leadID := uint(idVal)
-// 			user.LeaderID = &leadID
-// 		}
-// 	}
+	type genderGroup struct {
+		Gender  string `json:"gender"`
+		Count   int64  `json:"count"`
+		Percent string `json:"percent"`
+	}
 
-// 	// Optional: handle password
-// 	if password := form.Value["password"]; len(password) > 0 && password[0] != "" {
-// 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password[0]), bcrypt.DefaultCost)
-// 		if err != nil {
-// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
-// 			return
-// 		}
-// 		user.Password = string(hashedPassword)
-// 	}
+	result := []genderGroup{
+		{Gender: "Laki-laki", Count: res.Male, Percent: fmtPct(pctMale)},
+		{Gender: "Perempuan", Count: res.Female, Percent: fmtPct(pctFemale)},
+	}
 
-// 	// Optional: handle photo
-// 	if files := form.File["photo"]; len(files) > 0 {
-// 		// Hapus foto lama jika ada
-// 		if user.Photo != nil {
-// 			oldPath := "uploads/photos/" + *user.Photo
-// 			if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
-// 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete old photo"})
-// 				return
-// 			}
-// 		}
-// 		photoFile := files[0]
-// 		filename := time.Now().Format("20060102150405") + "_" + photoFile.Filename
-// 		savePath := "uploads/photos/" + filename
-// 		if err := c.SaveUploadedFile(photoFile, savePath); err != nil {
-// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save photo"})
-// 			return
-// 		}
-// 		user.Photo = &filename
-// 	}
+	c.JSON(http.StatusOK, gin.H{
+		"total_respondents": res.Total,
+		"gender_groups":     result,
+	})
+}
 
-// 	if err := h.db.Save(&user).Error; err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
+func (h *UserHandler) CountEducation(c *gin.Context) {
+	type row struct {
+		EducationID *uint  `json:"id,omitempty"`
+		Label       string `json:"label"`
+		Count       int64  `json:"count"`
+	}
 
-// 	c.JSON(http.StatusOK, user)
-// }
+	var rows []row
+	err := h.dbx(c.Request.Context()).Raw(`
+		SELECT
+			e.id AS education_id,
+			COALESCE(e.name, 'Tidak diisi') AS label,
+			COUNT(u.id) AS count
+		FROM users u
+		LEFT JOIN educations e ON e.id = u.last_education_id
+		GROUP BY e.id, e.name
+		ORDER BY CASE WHEN e.id IS NULL THEN 1 ELSE 0 END, e.id ASC
+	`).Scan(&rows).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-// func (h *UserHandler) DeleteUser(c *gin.Context) {
-// 	id := c.Param("id")
-// 	var user models.User
-// 	if err := h.db.First(&user, id).Error; err != nil {
-// 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-// 		return
-// 	}
+	var total int64
+	for i := range rows {
+		total += rows[i].Count
+	}
 
-// 	h.db.Delete(&user)
+	type eduGroup struct {
+		ID      *uint  `json:"id,omitempty"`
+		Label   string `json:"label"`
+		Count   int64  `json:"count"`
+		Percent string `json:"percent"`
+	}
 
-// 	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
-// }
+	out := make([]eduGroup, 0, len(rows))
+	var denom float64 = 1
+	if total > 0 {
+		denom = float64(total)
+	}
+	for _, r := range rows {
+		pct := float64(r.Count) / denom * 100
+		out = append(out, eduGroup{
+			ID:      r.EducationID,
+			Label:   r.Label,
+			Count:   r.Count,
+			Percent: fmtPct(pct),
+		})
+	}
 
-// var jwtKey = []byte("secret_key") // Ganti dengan lebih aman untuk production
+	c.JSON(http.StatusOK, gin.H{
+		"total_respondents": total,
+		"education_groups":  out,
+	})
+}
 
-// type LoginInput struct {
-// 	Email    string `json:"email" binding:"required"`
-// 	Password string `json:"password" binding:"required"`
-// }
+func (h *UserHandler) CountOccupation(c *gin.Context) {
+	type row struct {
+		OccupationID *uint  `json:"id,omitempty"`
+		Label        string `json:"label"`
+		Count        int64  `json:"count"`
+	}
 
-// func (h *UserHandler) LoginUser(c *gin.Context) {
-// 	var input LoginInput
-// 	if err := c.ShouldBindJSON(&input); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
+	var rows []row
+	err := h.dbx(c.Request.Context()).Raw(`
+		SELECT
+			o.id AS occupation_id,
+			COALESCE(o.name, 'Tidak diisi') AS label,
+			COUNT(u.id) AS count
+		FROM users u
+		LEFT JOIN occupations o ON o.id = u.main_occupation_id
+		GROUP BY o.id, o.name
+		ORDER BY CASE WHEN o.id IS NULL THEN 1 ELSE 0 END, o.id ASC
+	`).Scan(&rows).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-// 	var user models.User
-// 	if err := h.db.Where("email = ?", input.Email).First(&user).Error; err != nil {
-// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
-// 		return
-// 	}
-// 	if !user.IsActive {
-// 		c.JSON(http.StatusForbidden, gin.H{"error": "akun tidak aktif"})
-// 		return
-// 	}
+	var total int64
+	for i := range rows {
+		total += rows[i].Count
+	}
 
-// 	// Compare hash
-// 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
-// 		return
-// 	}
+	type occGroup struct {
+		ID      *uint  `json:"id,omitempty"`
+		Label   string `json:"label"`
+		Count   int64  `json:"count"`
+		Percent string `json:"percent"`
+	}
 
-// 	// Generate JWT token
-// 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-// 		"user_id": user.ID,
-// 		"role":    string(user.Role),
-// 		"exp":     time.Now().Add(time.Hour * 24).Unix(),
-// 	})
+	out := make([]occGroup, 0, len(rows))
+	var denom float64 = 1
+	if total > 0 {
+		denom = float64(total)
+	}
+	for _, r := range rows {
+		pct := float64(r.Count) / denom * 100
+		out = append(out, occGroup{
+			ID:      r.OccupationID,
+			Label:   r.Label,
+			Count:   r.Count,
+			Percent: fmtPct(pct),
+		})
+	}
 
-// 	tokenString, err := token.SignedString(jwtKey)
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create token"})
-// 		return
-// 	}
+	c.JSON(http.StatusOK, gin.H{
+		"total_respondents": total,
+		"occupation_groups": out,
+	})
+}
 
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"token": tokenString,
-// 	})
-// }
+func (h *UserHandler) GetUserAnswers(c *gin.Context) {
+	type row struct {
+		UserName string `json:"user_name" gorm:"column:user_name"`
+		Soal1    *int   `json:"soal_1"    gorm:"column:soal_1"`
+		Soal2    *int   `json:"soal_2"    gorm:"column:soal_2"`
+		Soal3    *int   `json:"soal_3"    gorm:"column:soal_3"`
+		Soal4    *int   `json:"soal_4"    gorm:"column:soal_4"`
+		Soal5    *int   `json:"soal_5"    gorm:"column:soal_5"`
+		Soal6    *int   `json:"soal_6"    gorm:"column:soal_6"`
+		Soal7    *int   `json:"soal_7"    gorm:"column:soal_7"`
+		Soal8    *int   `json:"soal_8"    gorm:"column:soal_8"`
+		Soal9    *int   `json:"soal_9"    gorm:"column:soal_9"`
+	}
 
-// func (h *UserHandler) Me(c *gin.Context) {
-// 	claims := c.MustGet("claims").(jwt.MapClaims)
-// 	userID := uint(claims["user_id"].(float64))
+	var rows []row
+	const sql = `
+		SELECT 
+			u.full_name AS user_name,
+			MAX(CASE WHEN a.question_id = 1 THEN c.points END) AS soal_1,
+			MAX(CASE WHEN a.question_id = 2 THEN c.points END) AS soal_2,
+			MAX(CASE WHEN a.question_id = 3 THEN c.points END) AS soal_3,
+			MAX(CASE WHEN a.question_id = 4 THEN c.points END) AS soal_4,
+			MAX(CASE WHEN a.question_id = 5 THEN c.points END) AS soal_5,
+			MAX(CASE WHEN a.question_id = 6 THEN c.points END) AS soal_6,
+			MAX(CASE WHEN a.question_id = 7 THEN c.points END) AS soal_7,
+			MAX(CASE WHEN a.question_id = 8 THEN c.points END) AS soal_8,
+			MAX(CASE WHEN a.question_id = 9 THEN c.points END) AS soal_9
+		FROM users u
+		LEFT JOIN answers a ON u.id = a.user_id
+		LEFT JOIN choices c ON c.id = a.choice_id
+		GROUP BY u.id, u.full_name
+	`
+	if err := h.dbx(c.Request.Context()).Raw(sql).Scan(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	totalUsers := len(rows)
 
-// 	var user models.User
-// 	if err := h.db.Preload("Position").Preload("Leader").First(&user, userID).Error; err != nil {
-// 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-// 		return
-// 	}
+	type agg struct {
+		Soal1 int64 `gorm:"column:soal_1"`
+		Soal2 int64 `gorm:"column:soal_2"`
+		Soal3 int64 `gorm:"column:soal_3"`
+		Soal4 int64 `gorm:"column:soal_4"`
+		Soal5 int64 `gorm:"column:soal_5"`
+		Soal6 int64 `gorm:"column:soal_6"`
+		Soal7 int64 `gorm:"column:soal_7"`
+		Soal8 int64 `gorm:"column:soal_8"`
+		Soal9 int64 `gorm:"column:soal_9"`
+	}
+	var a agg
 
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"id":    user.ID,
-// 		"photo": user.Photo,
-// 		"role":  user.Role,
-// 	})
-// }
+	const aggSQL = `
+		SELECT
+			SUM(CASE WHEN a.question_id = 1 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_1,
+			SUM(CASE WHEN a.question_id = 2 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_2,
+			SUM(CASE WHEN a.question_id = 3 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_3,
+			SUM(CASE WHEN a.question_id = 4 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_4,
+			SUM(CASE WHEN a.question_id = 5 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_5,
+			SUM(CASE WHEN a.question_id = 6 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_6,
+			SUM(CASE WHEN a.question_id = 7 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_7,
+			SUM(CASE WHEN a.question_id = 8 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_8,
+			SUM(CASE WHEN a.question_id = 9 THEN COALESCE(c.points,0) ELSE 0 END) AS soal_9
+		FROM users u
+		LEFT JOIN answers a ON u.id = a.user_id
+		LEFT JOIN choices c ON c.id = a.choice_id
+	`
+	if err := h.dbx(c.Request.Context()).Raw(aggSQL).Scan(&a).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	type stat struct {
+		SoalID        int    `json:"soal_id"`
+		Total         int64  `json:"total"`
+		Average       string `json:"average"`
+		NRRTertimbang string `json:"nrr_tertimbang"`
+		IKM           string `json:"ikm"`
+	}
+	stats := make([]stat, 0, 9)
+
+	denom := float64(totalUsers)
+	if totalUsers == 0 {
+		denom = 1 // hindari div-by-zero; hasil avg akan 0.00
+	}
+
+	appendStat := func(id int, total int64) {
+		avg := float64(total) / denom
+		nrrT := avg / 9.0
+		ikm := nrrT * 25.0
+		stats = append(stats, stat{
+			SoalID:        id,
+			Total:         total,
+			Average:       fmtPct(avg),
+			NRRTertimbang: fmtPct(nrrT),
+			IKM:           fmtPct(ikm),
+		})
+	}
+
+	appendStat(1, a.Soal1)
+	appendStat(2, a.Soal2)
+	appendStat(3, a.Soal3)
+	appendStat(4, a.Soal4)
+	appendStat(5, a.Soal5)
+	appendStat(6, a.Soal6)
+	appendStat(7, a.Soal7)
+	appendStat(8, a.Soal8)
+	appendStat(9, a.Soal9)
+
+	c.JSON(http.StatusOK, gin.H{
+		"total_users": totalUsers,
+		"data":        rows,
+		"stats":       stats,
+	})
+}
+
+func (h *UserHandler) GetUserAnswerByID(c *gin.Context) {
+	idStr := c.Param("id")
+	uid, err := strconv.Atoi(idStr)
+	if err != nil || uid <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id tidak valid"})
+		return
+	}
+
+	// 1) Ambil data user
+	var user models.User
+	if err := h.dbx(c.Request.Context()).
+		Preload("LastEducation").
+		Preload("MainOccupation").
+		First(&user, uid).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user tidak ditemukan"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 2) Ambil semua jawaban user + relasi Question.Choices dan Choice terpilih
+	var answers []models.Answer
+	if err := h.dbx(c.Request.Context()).
+		Preload("Question").
+		Preload("Question.Choices").
+		Preload("Choice").
+		Where("user_id = ?", uid).
+		Find(&answers).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 3) Susun response user (tanpa type switch case nil)
+	resp := UserAnswerDetailResponse{}
+	resp.User.ID = user.ID
+	resp.User.FullName = user.FullName
+	resp.User.PlaceOfBirth = user.PlaceOfBirth
+
+	if s, ok := toDateString(any(user.DateOfBirth)); ok {
+		resp.User.DateOfBirth = s
+	}
+	resp.User.IsMale = toBoolPtr(any(user.IsMale))
+	resp.User.LastEducationID = toUintPtr(any(user.LastEducationID))
+	resp.User.OccupationID = toUintPtr(any(user.MainOccupationID))
+
+	if user.LastEducation != nil {
+		resp.User.LastEducationName = user.LastEducation.Name
+	}
+	if user.MainOccupation != nil {
+		resp.User.OccupationName = user.MainOccupation.Name
+	}
+
+	// 4) Detail per soal
+	resp.Answers = make([]QuestionDetail, 0, len(answers))
+	for _, a := range answers {
+		q := a.Question
+
+		var selectedID *uint
+		if a.ChoiceID != 0 {
+			selectedID = &a.ChoiceID
+		}
+
+		qd := QuestionDetail{
+			QuestionID:   q.ID,
+			QuestionText: q.QuestionText, // sesuaikan jika nama field berbeda
+			SelectedID:   selectedID,
+			Choices:      make([]ChoiceDisplay, 0, len(q.Choices)),
+		}
+
+		for _, ch := range q.Choices {
+			text := ch.ChoiceText // ganti jika field berbeda
+			cd := ChoiceDisplay{
+				ID:       ch.ID,
+				RawText:  text,
+				Selected: selectedID != nil && ch.ID == *selectedID,
+			}
+			if cd.Selected {
+				cd.DisplayText = "**" + text + "**"
+			} else {
+				cd.DisplayText = text
+			}
+			qd.Choices = append(qd.Choices, cd)
+		}
+
+		resp.Answers = append(resp.Answers, qd)
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *UserHandler) GetUsers(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Ambil hanya kolom yang diperlukan
+	var rows []struct {
+		ID       uint   `gorm:"column:id"`
+		FullName string `gorm:"column:full_name"`
+	}
+
+	if err := h.dbx(ctx).
+		Model(&models.User{}).
+		Select("id, full_name").
+		Order("full_name ASC").
+		Scan(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Map ke format options
+	opts := make([]UserOption, len(rows))
+	for i, r := range rows {
+		opts[i] = UserOption{
+			Value: r.ID,
+			Label: r.FullName,
+		}
+	}
+
+	// Response ringkas & siap pakai di select
+	c.JSON(http.StatusOK, gin.H{
+		"options": opts,
+		"count":   len(opts),
+	})
+}

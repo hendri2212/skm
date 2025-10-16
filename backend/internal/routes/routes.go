@@ -16,19 +16,18 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	var allowedOrigins []string
 	if gin.Mode() == gin.ReleaseMode {
 		allowedOrigins = []string{
-			"https://skm.sipaktusarah.com",
+			"http://sipaktusarah.com", "https://skm.sipaktusarah.com",
 		}
 	} else {
 		allowedOrigins = []string{
-			"http://localhost:5173",
+			"http://127.0.0.1:8000",
 		}
 	}
 
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: allowedOrigins,
-		// AllowOrigins:     []string{"*"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-CSRF-Token", "X-XSRF-TOKEN", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
@@ -36,7 +35,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 		c.AbortWithStatus(http.StatusNoContent)
 	})
 
-	// userHandler := handlers.UsersHandler(db)
+	userHandler := handlers.UsersHandler(db)
 	questionsHandler := handlers.QuestionsHandler(db)
 	educationsHandler := handlers.EducationsHandler(db)
 	occupationsHandler := handlers.OccupationsHandler(db)
@@ -51,11 +50,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 		// api.Use(middlewares.AuthMiddleware())
 
 		// api.GET("/me", userHandler.Me)
-		// api.GET("/users", userHandler.GetUsers)
-		// api.POST("/users", userHandler.CreateUser)
-		// api.GET("/users/:id", userHandler.GetUserByID)
-		// api.PUT("/users/:id", userHandler.UpdateUser)
-		// api.DELETE("/users/:id", userHandler.DeleteUser)
+		api.GET("/countAge", userHandler.CountAge)
+		api.GET("/countGender", userHandler.CountGender)
+		api.GET("/countEducation", userHandler.CountEducation)
+		api.GET("/countOccupation", userHandler.CountOccupation)
+		api.GET("/users", userHandler.GetUsers)
+		api.GET("/user-answer", userHandler.GetUserAnswers)
+		api.GET("/user-answer/:id", userHandler.GetUserAnswerByID)
 
 		api.GET("/questions", questionsHandler.GetQuestions)
 		api.POST("/answers", questionsHandler.SubmitAnswers)
