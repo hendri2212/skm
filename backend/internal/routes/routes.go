@@ -56,6 +56,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 		api.GET("/countOccupation", userHandler.CountOccupation)
 		api.GET("/users", userHandler.GetUsers)
 		api.GET("/user-answer", userHandler.GetUserAnswers)
+		api.GET("/user-answer-all", userHandler.GetUserAnswerAll)
 		api.GET("/user-answer/:id", userHandler.GetUserAnswerByID)
 
 		api.GET("/questions", questionsHandler.GetQuestions)

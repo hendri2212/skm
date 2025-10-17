@@ -508,6 +508,117 @@ func (h *UserHandler) GetUserAnswerByID(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// GetUserAnswerAll mengembalikan daftar UserAnswerDetailResponse untuk semua user.
+// Struktur elemen di dalam "data" identik dengan GetUserAnswerByID.
+func (h *UserHandler) GetUserAnswerAll(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// 1) Ambil semua user + relasi ringkas yg dibutuhkan untuk header user
+	var users []models.User
+	if err := h.dbx(ctx).
+		Preload("LastEducation").
+		Preload("MainOccupation").
+		Order("full_name ASC").
+		Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if len(users) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"count": 0,
+			"data":  []UserAnswerDetailResponse{},
+		})
+		return
+	}
+
+	// 2) Ambil seluruh jawaban untuk semua user sekaligus + preload relasi yang sama seperti GetUserAnswerByID
+	ids := make([]uint, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.ID)
+	}
+
+	var answers []models.Answer
+	if err := h.dbx(ctx).
+		Preload("Question").
+		Preload("Question.Choices").
+		Preload("Choice").
+		Where("user_id IN ?", ids).
+		Find(&answers).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 3) Kelompokkan jawaban per user_id agar assembling O(n)
+	ansByUser := make(map[uint][]models.Answer, len(users))
+	for _, a := range answers {
+		ansByUser[a.UserID] = append(ansByUser[a.UserID], a)
+	}
+
+	// 4) Susun response per user (identik dengan GetUserAnswerByID)
+	out := make([]UserAnswerDetailResponse, 0, len(users))
+	for _, user := range users {
+		resp := UserAnswerDetailResponse{}
+		resp.User.ID = user.ID
+		resp.User.FullName = user.FullName
+		resp.User.PlaceOfBirth = user.PlaceOfBirth
+		if s, ok := toDateString(any(user.DateOfBirth)); ok {
+			resp.User.DateOfBirth = s
+		}
+		resp.User.IsMale = toBoolPtr(any(user.IsMale))
+		resp.User.LastEducationID = toUintPtr(any(user.LastEducationID))
+		resp.User.OccupationID = toUintPtr(any(user.MainOccupationID))
+		if user.LastEducation != nil {
+			resp.User.LastEducationName = user.LastEducation.Name
+		}
+		if user.MainOccupation != nil {
+			resp.User.OccupationName = user.MainOccupation.Name
+		}
+
+		// Detail per soal
+		ua := ansByUser[user.ID]
+		resp.Answers = make([]QuestionDetail, 0, len(ua))
+		for _, a := range ua {
+			q := a.Question
+
+			var selectedID *uint
+			if a.ChoiceID != 0 {
+				selectedID = &a.ChoiceID
+			}
+
+			qd := QuestionDetail{
+				QuestionID:   q.ID,
+				QuestionText: q.QuestionText,
+				SelectedID:   selectedID,
+				Choices:      make([]ChoiceDisplay, 0, len(q.Choices)),
+			}
+
+			for _, ch := range q.Choices {
+				text := ch.ChoiceText
+				cd := ChoiceDisplay{
+					ID:       ch.ID,
+					RawText:  text,
+					Selected: selectedID != nil && ch.ID == *selectedID,
+				}
+				if cd.Selected {
+					cd.DisplayText = "**" + text + "**"
+				} else {
+					cd.DisplayText = text
+				}
+				qd.Choices = append(qd.Choices, cd)
+			}
+			resp.Answers = append(resp.Answers, qd)
+		}
+
+		out = append(out, resp)
+	}
+
+	// 5) Response
+	c.JSON(http.StatusOK, gin.H{
+		"count": len(out),
+		"data":  out,
+	})
+}
+
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	ctx := c.Request.Context()
 
