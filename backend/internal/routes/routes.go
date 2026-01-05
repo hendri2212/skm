@@ -16,7 +16,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	var allowedOrigins []string
 	if gin.Mode() == gin.ReleaseMode {
 		allowedOrigins = []string{
-			"http://sipaktusarah.com", "https://skm.sipaktusarah.com",
+			"http://sipaktusarah.com", "https://sipaktusarah.com", "https://skm.sipaktusarah.com",
 		}
 	} else {
 		allowedOrigins = []string{
@@ -63,5 +63,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 		api.POST("/answers", questionsHandler.SubmitAnswers)
 		api.GET("/educations", educationsHandler.GetEducations)
 		api.GET("/occupations", occupationsHandler.GetOccupations)
+
+		// Reports endpoint
+		api.GET("/report", userHandler.Report)
 	}
 }

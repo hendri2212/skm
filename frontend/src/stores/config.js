@@ -9,7 +9,7 @@ export const useConfigStore = defineStore('config', () => {
             return 'http://localhost:8080'
         } else {
             // Jika akses dari domain apa pun
-            return 'https://api-skm.tukarjual.com'
+            return 'https://skm.sipaktusarah.com/api'
         }
     }
 

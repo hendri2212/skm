@@ -301,6 +301,15 @@ func (h *UserHandler) CountOccupation(c *gin.Context) {
 	})
 }
 
+// Report is a placeholder endpoint for aggregated reporting.
+// Adjust the response structure to your needs.
+func (h *UserHandler) Report(c *gin.Context) {
+    c.JSON(http.StatusOK, gin.H{
+        "status":  "ok",
+        "message": "report endpoint",
+    })
+}
+
 func (h *UserHandler) GetUserAnswers(c *gin.Context) {
 	type row struct {
 		UserName string `json:"user_name" gorm:"column:user_name"`
